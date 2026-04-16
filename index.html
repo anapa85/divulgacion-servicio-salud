@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Calendario interactivo</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 0;
+      padding: 24px;
+      background: #f5f7fb;
+      color: #222;
+    }
+
+    .contenedor {
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
+    h1 {
+      margin-bottom: 8px;
+    }
+
+    p {
+      color: #555;
+      margin-bottom: 20px;
+    }
+
+    .panel {
+      background: white;
+      border-radius: 12px;
+      padding: 18px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.08);
+      margin-bottom: 20px;
+    }
+
+    #filtros {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 12px;
+      margin-bottom: 14px;
+    }
+
+    .grupo-filtro {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    label {
+      font-size: 14px;
+      font-weight: bold;
+    }
+
+    select, button {
+      padding: 10px;
+      border: 1px solid #ccc;
+      border-radius: 8px;
+      font-size: 14px;
+      background: white;
+    }
+
+    button {
+      background: #1f4f96;
+      color: white;
+      border: none;
+      cursor: pointer;
+    }
+
+    button:hover {
+      opacity: 0.95;
+    }
+
+    .info {
+      margin-bottom: 12px;
+      font-weight: bold;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      background: white;
+      border-radius: 10px;
+      overflow: hidden;
+    }
+
+    th, td {
+      border: 1px solid #e3e3e3;
+      padding: 10px;
+      text-align: left;
+      font-size: 14px;
+    }
+
+    th {
+      background: #e9eef7;
+    }
+
+    tr:nth-child(even) {
+      background: #fafafa;
+    }
+
+    .mensaje {
+      background: white;
+      padding: 16px;
+      border-radius: 10px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.08);
+    }
+  </style>
+</head>
+<body>
+  <div class="contenedor">
+    <h1>Calendario interactivo</h1>
+    <p>Seleccioná una o más opciones para filtrar la información.</p>
+
+    <div class="panel">
+      <div id="filtros"></div>
+      <button id="limpiar">Limpiar filtros</button>
+    </div>
+
+    <div id="infoResultados" class="info"></div>
+    <div id="resultados"></div>
+  </div>
+
+  <script>
+    const ARCHIVO_JSON = "./regiones_pba_filtros_github.json";
+
+    let datosOriginales = [];
+    let columnas = [];
+    let estadoFiltros = {};
+
+    async function iniciar() {
+      try {
+        const respuesta = await fetch(ARCHIVO_JSON);
+
+        if (!respuesta.ok) {
+          throw new Error("No se pudo cargar el archivo JSON");
+        }
+
+        datosOriginales = await respuesta.json();
+
+        if (!datosOriginales.length) {
+          document.getElementById("resultados").innerHTML =
+            '<div class="mensaje">No hay datos disponibles.</div>';
+          return;
+        }
+
+        columnas = Object.keys(datosOriginales[0]);
+
+        columnas.forEach(columna => {
+          estadoFiltros[columna] = "";
+        });
+
+        crearFiltros();
+        mostrarResultados(datosOriginales);
+
+        document.getElementById("limpiar").addEventListener("click", limpiarFiltros);
+      } catch (error) {
+        console.error(error);
+        document.getElementById("resultados").innerHTML =
+          '<div class="mensaje">Error al cargar los datos. Revisá que el JSON esté en la misma carpeta que el index.html y que el nombre sea exacto.</div>';
+      }
+    }
+
+    function crearFiltros() {
+      const contenedor = document.getElementById("filtros");
+      contenedor.innerHTML = "";
+
+      columnas.forEach(columna => {
+        const grupo = document.createElement("div");
+        grupo.className = "grupo-filtro";
+
+        const label = document.createElement("label");
+        label.textContent = columna;
+        label.setAttribute("for", `filtro-${columna}`);
+
+        const select = document.createElement("select");
+        select.id = `filtro-${columna}`;
+        select.dataset.columna = columna;
+
+        const opcionTodas = document.createElement("option");
+        opcionTodas.value = "";
+        opcionTodas.textContent = "Todos";
+        select.appendChild(opcionTodas);
+
+        const valores = [...new Set(
+          datosOriginales
+            .map(fila => normalizar(fila[columna]))
+            .filter(valor => valor !== "")
+        )].sort((a, b) => a.localeCompare(b, "es"));
+
+        valores.forEach(valor => {
+          const option = document.createElement("option");
+          option.value = valor;
+          option.textContent = valor;
+          select.appendChild(option);
+        });
+
+        select.addEventListener("change", (e) => {
+          const columnaActual = e.target.dataset.columna;
+          estadoFiltros[columnaActual] = e.target.value;
+          aplicarFiltros();
+        });
+
+        grupo.appendChild(label);
+        grupo.appendChild(select);
+        contenedor.appendChild(grupo);
+      });
+    }
+
+    function aplicarFiltros() {
+      const filtrados = datosOriginales.filter(fila => {
+        return columnas.every(columna => {
+          const seleccionado = estadoFiltros[columna];
+          if (!seleccionado) return true;
+          return normalizar(fila[columna]) === seleccionado;
+        });
+      });
+
+      mostrarResultados(filtrados);
+    }
+
+    function mostrarResultados(datos) {
+      const contenedor = document.getElementById("resultados");
+      const info = document.getElementById("infoResultados");
+
+      info.textContent = `Resultados encontrados: ${datos.length}`;
+
+      if (!datos.length) {
+        contenedor.innerHTML = '<div class="mensaje">No se encontraron resultados para esa combinación.</div>';
+        return;
+      }
+
+      const tabla = document.createElement("table");
+      const thead = document.createElement("thead");
+      const filaHead = document.createElement("tr");
+
+      columnas.forEach(columna => {
+        const th = document.createElement("th");
+        th.textContent = columna;
+        filaHead.appendChild(th);
+      });
+
+      thead.appendChild(filaHead);
+      tabla.appendChild(thead);
+
+      const tbody = document.createElement("tbody");
+
+      datos.forEach(fila => {
+        const tr = document.createElement("tr");
+
+        columnas.forEach(columna => {
+          const td = document.createElement("td");
+          td.textContent = normalizar(fila[columna]);
+          tr.appendChild(td);
+        });
+
+        tbody.appendChild(tr);
+      });
+
+      tabla.appendChild(tbody);
+
+      contenedor.innerHTML = "";
+      contenedor.appendChild(tabla);
+    }
+
+    function limpiarFiltros() {
+      columnas.forEach(columna => {
+        estadoFiltros[columna] = "";
+        const select = document.getElementById(`filtro-${columna}`);
+        if (select) select.value = "";
+      });
+
+      mostrarResultados(datosOriginales);
+    }
+
+    function normalizar(valor) {
+      return valor == null ? "" : String(valor).trim();
+    }
+
+    iniciar();
+  </script>
+</body>
+</html>
