@@ -19,7 +19,6 @@
       margin: 0 auto;
     }
 
-    /* 🔹 HEADER CON IMAGEN */
     .header {
       position: relative;
       width: 100%;
@@ -27,32 +26,41 @@
       border-radius: 14px;
       overflow: hidden;
       margin-bottom: 20px;
+      background: #dfe6f2;
     }
 
     .header img {
       width: 100%;
       height: 100%;
       object-fit: cover;
+      display: block;
     }
 
     .header-text {
       position: absolute;
-      bottom: 0;
       left: 0;
-      width: 100%;
+      right: 0;
+      bottom: 0;
       padding: 20px;
-      background: linear-gradient(to top, rgba(0,0,0,0.6), transparent);
-      color: white;
+      background: linear-gradient(to top, rgba(0,0,0,0.55), transparent);
     }
 
     .header-text h1 {
       margin: 0;
       font-size: 26px;
+      color: white;
+      -webkit-text-stroke: 0.7px black;
+      text-shadow:
+        1px 1px 0 #000,
+        -1px 1px 0 #000,
+        1px -1px 0 #000,
+        -1px -1px 0 #000;
     }
 
     .header-text p {
-      margin: 4px 0 0 0;
-      color: #eee;
+      margin: 6px 0 0 0;
+      color: white;
+      text-shadow: 1px 1px 2px rgba(0,0,0,0.8);
     }
 
     .panel {
@@ -65,7 +73,7 @@
 
     #filters {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
       gap: 12px;
       margin-bottom: 14px;
     }
@@ -87,6 +95,7 @@
       border: 1px solid #ccc;
       font-size: 14px;
       box-sizing: border-box;
+      background: white;
     }
 
     button {
@@ -124,6 +133,7 @@
     .name {
       font-size: 18px;
       font-weight: bold;
+      margin-bottom: 4px;
     }
 
     .profession {
@@ -142,18 +152,30 @@
       min-width: 120px;
     }
 
-    .empty {
+    .empty, .error-box {
       background: white;
       padding: 16px;
       border-radius: 10px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.08);
+    }
+
+    .error-box {
+      color: #8a1c1c;
+      border-left: 5px solid #c0392b;
+    }
+
+    .debug {
+      margin-top: 8px;
+      font-family: monospace;
+      font-size: 13px;
+      white-space: pre-wrap;
+      color: #444;
     }
   </style>
 </head>
-
 <body>
   <div class="container">
 
-    <!-- 🔹 HEADER -->
     <div class="header">
       <img src="./header.jpg" alt="Repositorio de salud">
       <div class="header-text">
@@ -180,52 +202,98 @@
     const DATA_URL = "./repositorio_salud_filtros_profesion_normalizada.csv";
 
     let data = [];
-    let headers = [];
-    let visibleFilterHeaders = [];
-    let filters = {};
+    let filters = {
+      profesion: "",
+      poblacion: "",
+      zona: ""
+    };
     let textSearch = "";
+
+    function normalize(value) {
+      return String(value ?? "").trim();
+    }
+
+    function escapeHtml(text) {
+      return String(text ?? "")
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#039;");
+    }
+
+    function field(label, value) {
+      const clean = normalize(value);
+      if (!clean) return "";
+      return `<div class="field"><strong>${escapeHtml(label)}:</strong> ${escapeHtml(clean)}</div>`;
+    }
 
     async function init() {
       try {
-        const res = await fetch(DATA_URL);
-        if (!res.ok) throw new Error("No se pudo cargar el JSON");
+        const res = await fetch(DATA_URL, { cache: "no-store" });
 
-        data = await res.json();
+        if (!res.ok) {
+          throw new Error(`No se pudo cargar el CSV. HTTP ${res.status}`);
+        }
 
-        headers = Object.keys(data[0]);
+        const csvText = await res.text();
+        data = parseCSV(csvText);
 
-        visibleFilterHeaders = headers.filter(h =>
-          h !== "Mail" &&
-          h !== "Teléfono (fijo o celular)" &&
-          h !== 'Si su respuesta fue "Sí", ¿con qué obra social trabaja?'
-        );
-
-        headers.forEach(h => filters[h] = "");
+        if (!Array.isArray(data) || data.length === 0) {
+          document.getElementById("results").innerHTML =
+            "<div class='empty'>No hay datos disponibles.</div>";
+          return;
+        }
 
         renderFilters();
         bindEvents();
         applyFilters();
 
       } catch (error) {
-        document.getElementById("results").innerHTML =
-          "<div class='empty'>Error al cargar datos.</div>";
+        document.getElementById("results").innerHTML = `
+          <div class="error-box">
+            Error al cargar datos.
+            <div class="debug">${escapeHtml(error.message)}</div>
+            <div class="debug">Verificá que estén en la misma carpeta:
+- index.html
+- repositorio_salud_filtros_profesion_normalizada.csv
+- header.jpg</div>
+          </div>
+        `;
+        console.error(error);
       }
+    }
+
+    function getProfessionField() {
+      if (!data.length) return "Profesión";
+      if ("Profesión normalizada" in data[0]) return "Profesión normalizada";
+      return "Profesión";
+    }
+
+    function uniqueValues(fieldName) {
+      return [...new Set(
+        data.map(item => normalize(item[fieldName])).filter(Boolean)
+      )].sort((a, b) => a.localeCompare(b, "es"));
     }
 
     function renderFilters() {
       const container = document.getElementById("filters");
       container.innerHTML = "";
 
-      visibleFilterHeaders.forEach(header => {
-        const values = [...new Set(
-          data.map(d => (d[header] || "").trim()).filter(v => v)
-        )].sort();
+      const professionField = getProfessionField();
 
+      const filterConfig = [
+        { key: "profesion", label: "Profesión", field: professionField },
+        { key: "poblacion", label: "Población", field: "Población q atiende" },
+        { key: "zona", label: "Zona donde atiende", field: "Zona donde atiende" }
+      ];
+
+      filterConfig.forEach(config => {
         const group = document.createElement("div");
         group.className = "filter-group";
 
         const label = document.createElement("label");
-        label.textContent = header;
+        label.textContent = config.label;
 
         const select = document.createElement("select");
 
@@ -234,15 +302,15 @@
         optionAll.textContent = "Todos";
         select.appendChild(optionAll);
 
-        values.forEach(v => {
+        uniqueValues(config.field).forEach(value => {
           const opt = document.createElement("option");
-          opt.value = v;
-          opt.textContent = v;
+          opt.value = value;
+          opt.textContent = value;
           select.appendChild(opt);
         });
 
         select.addEventListener("change", () => {
-          filters[header] = select.value;
+          filters[config.key] = select.value;
           applyFilters();
         });
 
@@ -254,13 +322,15 @@
 
     function bindEvents() {
       document.getElementById("search").addEventListener("input", (e) => {
-        textSearch = e.target.value.toLowerCase();
+        textSearch = normalize(e.target.value).toLowerCase();
         applyFilters();
       });
 
       document.getElementById("clear").addEventListener("click", () => {
-        headers.forEach(h => filters[h] = "");
-        document.querySelectorAll("select").forEach(s => s.value = "");
+        filters.profesion = "";
+        filters.poblacion = "";
+        filters.zona = "";
+        document.querySelectorAll("#filters select").forEach(s => s.value = "");
         document.getElementById("search").value = "";
         textSearch = "";
         applyFilters();
@@ -268,18 +338,19 @@
     }
 
     function applyFilters() {
-      const filtered = data.filter(item => {
-        const matchFilters = visibleFilterHeaders.every(h => {
-          if (!filters[h]) return true;
-          return (item[h] || "").trim() === filters[h];
-        });
+      const professionField = getProfessionField();
 
-        if (!matchFilters) return false;
+      const filtered = data.filter(item => {
+        const matchProfession = !filters.profesion || normalize(item[professionField]) === filters.profesion;
+        const matchPoblacion = !filters.poblacion || normalize(item["Población q atiende"]) === filters.poblacion;
+        const matchZona = !filters.zona || normalize(item["Zona donde atiende"]) === filters.zona;
+
+        if (!matchProfession || !matchPoblacion || !matchZona) return false;
 
         if (!textSearch) return true;
 
-        return headers.some(h =>
-          (item[h] || "").toLowerCase().includes(textSearch)
+        return Object.values(item).some(value =>
+          normalize(value).toLowerCase().includes(textSearch)
         );
       });
 
@@ -289,6 +360,7 @@
     function renderResults(list) {
       const results = document.getElementById("results");
       const info = document.getElementById("info");
+      const professionField = getProfessionField();
 
       info.textContent = "Resultados: " + list.length;
 
@@ -304,15 +376,18 @@
         const card = document.createElement("div");
         card.className = "card";
 
-        const name = ((item["Nombre"] || "") + " " + (item["Apellido"] || "")).trim();
+        const name = `${normalize(item["Nombre"])} ${normalize(item["Apellido"])}`.trim();
 
         card.innerHTML = `
-          <div class="name">${name}</div>
-          <div class="profession">${item["Profesión"] || ""}</div>
+          <div class="name">${escapeHtml(name || "Sin nombre")}</div>
+          <div class="profession">${escapeHtml(item[professionField] || "")}</div>
           ${field("Mail", item["Mail"])}
           ${field("Teléfono", item["Teléfono (fijo o celular)"])}
           ${field("Servicios", item["Servicios q brinda"])}
           ${field("Población", item["Población q atiende"])}
+          ${field("Obra social", item["Atiende por obra social"])}
+          ${field("Cuál obra social", item['Si su respuesta fue "Sí", ¿con qué obra social trabaja?'])}
+          ${field("CUD", item["Atiende pacientes con Certificado discapacidad"])}
           ${field("Zona", item["Zona donde atiende"])}
         `;
 
@@ -323,9 +398,46 @@
       results.appendChild(cards);
     }
 
-    function field(label, value) {
-      if (!value) return "";
-      return `<div class="field"><strong>${label}:</strong> ${value}</div>`;
+    function parseCSV(text) {
+      const lines = text.replace(/^\\uFEFF/, "").split(/\\r?\\n/).filter(line => line.trim() !== "");
+      if (!lines.length) return [];
+
+      const headers = splitCSVLine(lines[0]);
+
+      return lines.slice(1).map(line => {
+        const values = splitCSVLine(line);
+        const row = {};
+        headers.forEach((header, index) => {
+          row[header] = values[index] ?? "";
+        });
+        return row;
+      });
+    }
+
+    function splitCSVLine(line) {
+      const result = [];
+      let current = "";
+      let insideQuotes = false;
+
+      for (let i = 0; i < line.length; i++) {
+        const char = line[i];
+        const next = line[i + 1];
+
+        if (char === '"' && insideQuotes && next === '"') {
+          current += '"';
+          i++;
+        } else if (char === '"') {
+          insideQuotes = !insideQuotes;
+        } else if (char === "," && !insideQuotes) {
+          result.push(current);
+          current = "";
+        } else {
+          current += char;
+        }
+      }
+
+      result.push(current);
+      return result.map(value => value.trim());
     }
 
     init();
