@@ -176,7 +176,7 @@ const filtrosVisibles = headers.filter(h =>
       const container = document.getElementById("filters");
       container.innerHTML = "";
 
-      headers.forEach(header => {
+      filtrosVisibles.forEach(header => {
 
         const values = [...new Set(
           data.map(d => (d[header] || "").trim()).filter(v => v)
