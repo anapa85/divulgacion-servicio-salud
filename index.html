@@ -1,47 +1,48 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Calendario interactivo</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Repositorio de profesionales de la salud</title>
   <style>
     body {
       font-family: Arial, sans-serif;
       margin: 0;
       padding: 24px;
-      background: #f5f7fb;
+      background: #f7f8fa;
       color: #222;
     }
 
-    .contenedor {
-      max-width: 1200px;
+    .container {
+      max-width: 1280px;
       margin: 0 auto;
     }
 
-   <div class="header">
-  <img src="./header.jpg" alt="Repositorio de salud" />
-  <div class="header-text">
-    <h1>Repositorio de profesionales de la salud</h1>
-    <p>Buscá profesionales según distintos criterios.</p>
-  </div>
-</div>
+    h1 {
+      margin-bottom: 6px;
+    }
+
+    .desc {
+      margin-top: 0;
+      margin-bottom: 20px;
+      color: #555;
+    }
 
     .panel {
-      background: white;
-      border-radius: 12px;
+      background: #fff;
+      border-radius: 14px;
       padding: 18px;
-      box-shadow: 0 2px 10px rgba(0,0,0,0.08);
-      margin-bottom: 20px;
+      box-shadow: 0 2px 10px rgba(0,0,0,.07);
+      margin-bottom: 18px;
     }
 
-    #filtros {
+    #filters {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
       gap: 12px;
-      margin-bottom: 14px;
     }
 
-    .grupo-filtro {
+    .filter-group {
       display: flex;
       flex-direction: column;
       gap: 6px;
@@ -49,235 +50,283 @@
 
     label {
       font-size: 14px;
-      font-weight: bold;
+      font-weight: 700;
     }
 
-    select, button {
+    select, input, button {
       padding: 10px;
-      border: 1px solid #ccc;
+      border: 1px solid #cfd6df;
       border-radius: 8px;
       font-size: 14px;
-      background: white;
     }
 
     button {
-      background: #1f4f96;
-      color: white;
+      background: #215a9c;
+      color: #fff;
       border: none;
       cursor: pointer;
     }
 
-    button:hover {
-      opacity: 0.95;
+    .actions {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-top: 14px;
     }
 
-    .info {
-      margin-bottom: 12px;
-      font-weight: bold;
+    .result-info {
+      margin: 14px 0;
+      font-weight: 700;
     }
 
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      background: white;
-      border-radius: 10px;
-      overflow: hidden;
+    .cards {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      gap: 14px;
     }
 
-    th, td {
-      border: 1px solid #e3e3e3;
-      padding: 10px;
-      text-align: left;
-      font-size: 14px;
-    }
-
-    th {
-      background: #e9eef7;
-    }
-
-    tr:nth-child(even) {
-      background: #fafafa;
-    }
-
-    .mensaje {
-      background: white;
+    .card {
+      background: #fff;
+      border-radius: 14px;
       padding: 16px;
-      border-radius: 10px;
-      box-shadow: 0 2px 10px rgba(0,0,0,0.08);
+      box-shadow: 0 2px 10px rgba(0,0,0,.07);
+    }
+
+    .name {
+      font-size: 18px;
+      font-weight: 700;
+      margin-bottom: 6px;
+    }
+
+    .profession {
+      font-weight: 700;
+      color: #215a9c;
+      margin-bottom: 10px;
+    }
+
+    .field {
+      margin-bottom: 8px;
+      line-height: 1.4;
+    }
+
+    .field strong {
+      display: inline-block;
+      min-width: 125px;
+    }
+
+    .empty {
+      background: #fff;
+      border-radius: 12px;
+      padding: 16px;
+      box-shadow: 0 2px 10px rgba(0,0,0,.07);
     }
   </style>
 </head>
 <body>
-  <div class="contenedor">
-    <h1>Calendario interactivo</h1>
-    <p>Seleccioná una o más opciones para filtrar la información.</p>
+  <div class="container">
+    <h1>Repositorio de profesionales de la salud</h1>
+    <p class="desc">Buscá profesionales según distintos criterios.</p>
 
     <div class="panel">
-      <div id="filtros"></div>
-      <button id="limpiar">Limpiar filtros</button>
+      <div id="filters"></div>
+      <div class="actions">
+        <input type="text" id="freeText" placeholder="Buscar texto libre..." />
+        <button id="clearFilters">Limpiar filtros</button>
+      </div>
     </div>
 
-    <div id="infoResultados" class="info"></div>
-    <div id="resultados"></div>
+    <div id="resultsInfo" class="result-info"></div>
+    <div id="results"></div>
   </div>
 
   <script>
-    const ARCHIVO_JSON = "./regiones_pba_filtros_github.json";
+    const DATA_URL = "./repositorio_salud_filtros.json";
 
-    let datosOriginales = [];
-    let columnas = [];
-    let estadoFiltros = {};
+    let originalData = [];
+    let headers = [];
+    let filtersState = {};
+    let freeText = "";
 
-    async function iniciar() {
+    async function init() {
       try {
-        const respuesta = await fetch(ARCHIVO_JSON);
+        const response = await fetch(DATA_URL);
+        if (!response.ok) throw new Error("No se pudo cargar el JSON");
 
-        if (!respuesta.ok) {
-          throw new Error("No se pudo cargar el archivo JSON");
-        }
+        originalData = await response.json();
 
-        datosOriginales = await respuesta.json();
-
-        if (!datosOriginales.length) {
-          document.getElementById("resultados").innerHTML =
-            '<div class="mensaje">No hay datos disponibles.</div>';
+        if (!originalData.length) {
+          document.getElementById("results").innerHTML =
+            '<div class="empty">No hay datos disponibles.</div>';
           return;
         }
 
-        columnas = Object.keys(datosOriginales[0]);
+        headers = Object.keys(originalData[0]);
 
-        columnas.forEach(columna => {
-          estadoFiltros[columna] = "";
+        headers.forEach((header) => {
+          filtersState[header] = "";
         });
 
-        crearFiltros();
-        mostrarResultados(datosOriginales);
-
-        document.getElementById("limpiar").addEventListener("click", limpiarFiltros);
+        renderFilters();
+        bindEvents();
+        applyFilters();
       } catch (error) {
         console.error(error);
-        document.getElementById("resultados").innerHTML =
-          '<div class="mensaje">Error al cargar los datos. Revisá que el JSON esté en la misma carpeta que el index.html y que el nombre sea exacto.</div>';
+        document.getElementById("results").innerHTML =
+          '<div class="empty">Error al cargar los datos. Verificá que el archivo JSON esté en la misma carpeta que este HTML.</div>';
       }
     }
 
-    function crearFiltros() {
-      const contenedor = document.getElementById("filtros");
-      contenedor.innerHTML = "";
+    function renderFilters() {
+      const filtersContainer = document.getElementById("filters");
+      filtersContainer.innerHTML = "";
 
-      columnas.forEach(columna => {
-        const grupo = document.createElement("div");
-        grupo.className = "grupo-filtro";
-
-        const label = document.createElement("label");
-        label.textContent = columna;
-        label.setAttribute("for", `filtro-${columna}`);
-
-        const select = document.createElement("select");
-        select.id = `filtro-${columna}`;
-        select.dataset.columna = columna;
-
-        const opcionTodas = document.createElement("option");
-        opcionTodas.value = "";
-        opcionTodas.textContent = "Todos";
-        select.appendChild(opcionTodas);
-
-        const valores = [...new Set(
-          datosOriginales
-            .map(fila => normalizar(fila[columna]))
-            .filter(valor => valor !== "")
+      headers.forEach((header) => {
+        const values = [...new Set(
+          originalData
+            .map((item) => normalize(item[header]))
+            .filter((value) => value !== "")
         )].sort((a, b) => a.localeCompare(b, "es"));
 
-        valores.forEach(valor => {
+        const group = document.createElement("div");
+        group.className = "filter-group";
+
+        const label = document.createElement("label");
+        label.textContent = header;
+
+        const select = document.createElement("select");
+        select.dataset.header = header;
+
+        const defaultOption = document.createElement("option");
+        defaultOption.value = "";
+        defaultOption.textContent = "Todos";
+        select.appendChild(defaultOption);
+
+        values.forEach((value) => {
           const option = document.createElement("option");
-          option.value = valor;
-          option.textContent = valor;
+          option.value = value;
+          option.textContent = value;
           select.appendChild(option);
         });
 
-        select.addEventListener("change", (e) => {
-          const columnaActual = e.target.dataset.columna;
-          estadoFiltros[columnaActual] = e.target.value;
-          aplicarFiltros();
-        });
+        select.addEventListener("change", handleFilterChange);
 
-        grupo.appendChild(label);
-        grupo.appendChild(select);
-        contenedor.appendChild(grupo);
+        group.appendChild(label);
+        group.appendChild(select);
+        filtersContainer.appendChild(group);
       });
     }
 
-    function aplicarFiltros() {
-      const filtrados = datosOriginales.filter(fila => {
-        return columnas.every(columna => {
-          const seleccionado = estadoFiltros[columna];
-          if (!seleccionado) return true;
-          return normalizar(fila[columna]) === seleccionado;
+    function bindEvents() {
+      document.getElementById("clearFilters").addEventListener("click", () => {
+        headers.forEach((header) => {
+          filtersState[header] = "";
         });
+
+        document.querySelectorAll("#filters select").forEach((select) => {
+          select.value = "";
+        });
+
+        const freeTextInput = document.getElementById("freeText");
+        freeTextInput.value = "";
+        freeText = "";
+
+        applyFilters();
       });
 
-      mostrarResultados(filtrados);
+      document.getElementById("freeText").addEventListener("input", (event) => {
+        freeText = normalize(event.target.value).toLowerCase();
+        applyFilters();
+      });
     }
 
-    function mostrarResultados(datos) {
-      const contenedor = document.getElementById("resultados");
-      const info = document.getElementById("infoResultados");
+    function handleFilterChange(event) {
+      const header = event.target.dataset.header;
+      filtersState[header] = event.target.value;
+      applyFilters();
+    }
 
-      info.textContent = `Resultados encontrados: ${datos.length}`;
+    function applyFilters() {
+      const filteredData = originalData.filter((item) => {
+        const passSelects = headers.every((header) => {
+          const selectedValue = filtersState[header];
+          if (!selectedValue) return true;
+          return normalize(item[header]) === selectedValue;
+        });
 
-      if (!datos.length) {
-        contenedor.innerHTML = '<div class="mensaje">No se encontraron resultados para esa combinación.</div>';
+        if (!passSelects) return false;
+
+        if (!freeText) return true;
+
+        return headers.some((header) =>
+          normalize(item[header]).toLowerCase().includes(freeText)
+        );
+      });
+
+      renderResults(filteredData);
+    }
+
+    function renderResults(data) {
+      const info = document.getElementById("resultsInfo");
+      const results = document.getElementById("results");
+
+      info.textContent = `Resultados encontrados: ${data.length}`;
+
+      if (!data.length) {
+        results.innerHTML =
+          '<div class="empty">No se encontraron resultados para esa combinación.</div>';
         return;
       }
 
-      const tabla = document.createElement("table");
-      const thead = document.createElement("thead");
-      const filaHead = document.createElement("tr");
+      const cards = document.createElement("div");
+      cards.className = "cards";
 
-      columnas.forEach(columna => {
-        const th = document.createElement("th");
-        th.textContent = columna;
-        filaHead.appendChild(th);
+      data.forEach((item) => {
+        const card = document.createElement("div");
+        card.className = "card";
+
+        const fullName = `${normalize(item["Nombre"])} ${normalize(item["Apellido"])}`.trim();
+        const profession = normalize(item["Profesión"]);
+
+        card.innerHTML = `
+          <div class="name">${escapeHtml(fullName || "Sin nombre")}</div>
+          <div class="profession">${escapeHtml(profession || "Profesión no informada")}</div>
+          ${field("Mail", item["Mail"])}
+          ${field("Teléfono", item["Teléfono (fijo o celular)"])}
+          ${field("Servicios", item["Servicios q brinda"])}
+          ${field("Población", item["Población q atiende"])}
+          ${field("Obra social", item["Atiende por obra social"])}
+          ${field("Cuál obra social", item['Si su respuesta fue "Sí", ¿con qué obra social trabaja?'])}
+          ${field("CUD", item["Atiende pacientes con Certificado discapacidad"])}
+          ${field("Zona", item["Zona donde atiende"])}
+        `;
+
+        cards.appendChild(card);
       });
 
-      thead.appendChild(filaHead);
-      tabla.appendChild(thead);
-
-      const tbody = document.createElement("tbody");
-
-      datos.forEach(fila => {
-        const tr = document.createElement("tr");
-
-        columnas.forEach(columna => {
-          const td = document.createElement("td");
-          td.textContent = normalizar(fila[columna]);
-          tr.appendChild(td);
-        });
-
-        tbody.appendChild(tr);
-      });
-
-      tabla.appendChild(tbody);
-
-      contenedor.innerHTML = "";
-      contenedor.appendChild(tabla);
+      results.innerHTML = "";
+      results.appendChild(cards);
     }
 
-    function limpiarFiltros() {
-      columnas.forEach(columna => {
-        estadoFiltros[columna] = "";
-        const select = document.getElementById(`filtro-${columna}`);
-        if (select) select.value = "";
-      });
-
-      mostrarResultados(datosOriginales);
+    function field(label, value) {
+      const clean = normalize(value);
+      if (!clean) return "";
+      return `<div class="field"><strong>${escapeHtml(label)}:</strong> ${escapeHtml(clean)}</div>`;
     }
 
-    function normalizar(valor) {
-      return valor == null ? "" : String(valor).trim();
+    function normalize(value) {
+      return value == null ? "" : String(value).trim();
     }
 
-    iniciar();
+    function escapeHtml(text) {
+      return String(text)
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#039;");
+    }
+
+    init();
   </script>
 </body>
 </html>
