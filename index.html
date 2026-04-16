@@ -19,14 +19,40 @@
       margin: 0 auto;
     }
 
-    h1 {
-      margin-bottom: 6px;
+    /* 🔹 HEADER CON IMAGEN */
+    .header {
+      position: relative;
+      width: 100%;
+      height: 260px;
+      border-radius: 14px;
+      overflow: hidden;
+      margin-bottom: 20px;
     }
 
-    .desc {
-      margin-top: 0;
-      margin-bottom: 20px;
-      color: #555;
+    .header img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    .header-text {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      width: 100%;
+      padding: 20px;
+      background: linear-gradient(to top, rgba(0,0,0,0.6), transparent);
+      color: white;
+    }
+
+    .header-text h1 {
+      margin: 0;
+      font-size: 26px;
+    }
+
+    .header-text p {
+      margin: 4px 0 0 0;
+      color: #eee;
     }
 
     .panel {
@@ -41,6 +67,7 @@
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
       gap: 12px;
+      margin-bottom: 14px;
     }
 
     .filter-group {
@@ -59,6 +86,7 @@
       border-radius: 8px;
       border: 1px solid #ccc;
       font-size: 14px;
+      box-sizing: border-box;
     }
 
     button {
@@ -106,6 +134,7 @@
 
     .field {
       margin-bottom: 6px;
+      line-height: 1.4;
     }
 
     .field strong {
@@ -124,8 +153,14 @@
 <body>
   <div class="container">
 
-    <h1>Repositorio de profesionales de la salud</h1>
-    <p class="desc">Buscá profesionales según distintos criterios</p>
+    <!-- 🔹 HEADER -->
+    <div class="header">
+      <img src="./header.jpg" alt="Repositorio de salud">
+      <div class="header-text">
+        <h1>Repositorio de profesionales de la salud</h1>
+        <p>Buscá profesionales según distintos criterios</p>
+      </div>
+    </div>
 
     <div class="panel">
       <div id="filters"></div>
@@ -146,20 +181,25 @@
 
     let data = [];
     let headers = [];
+    let visibleFilterHeaders = [];
     let filters = {};
     let textSearch = "";
 
     async function init() {
       try {
         const res = await fetch(DATA_URL);
+        if (!res.ok) throw new Error("No se pudo cargar el JSON");
+
         data = await res.json();
 
         headers = Object.keys(data[0]);
-const filtrosVisibles = headers.filter(h =>
-  h !== "Mail" &&
-  h !== "Teléfono (fijo o celular)" &&
-  h !== 'Si su respuesta fue "Sí", ¿con qué obra social trabaja?'
-);
+
+        visibleFilterHeaders = headers.filter(h =>
+          h !== "Mail" &&
+          h !== "Teléfono (fijo o celular)" &&
+          h !== 'Si su respuesta fue "Sí", ¿con qué obra social trabaja?'
+        );
+
         headers.forEach(h => filters[h] = "");
 
         renderFilters();
@@ -168,7 +208,7 @@ const filtrosVisibles = headers.filter(h =>
 
       } catch (error) {
         document.getElementById("results").innerHTML =
-          "<div class='empty'>Error al cargar datos. Verificá el JSON.</div>";
+          "<div class='empty'>Error al cargar datos.</div>";
       }
     }
 
@@ -176,8 +216,7 @@ const filtrosVisibles = headers.filter(h =>
       const container = document.getElementById("filters");
       container.innerHTML = "";
 
-      filtrosVisibles.forEach(header => {
-
+      visibleFilterHeaders.forEach(header => {
         const values = [...new Set(
           data.map(d => (d[header] || "").trim()).filter(v => v)
         )].sort();
@@ -230,8 +269,7 @@ const filtrosVisibles = headers.filter(h =>
 
     function applyFilters() {
       const filtered = data.filter(item => {
-
-        const matchFilters = headers.every(h => {
+        const matchFilters = visibleFilterHeaders.every(h => {
           if (!filters[h]) return true;
           return (item[h] || "").trim() === filters[h];
         });
@@ -263,11 +301,10 @@ const filtrosVisibles = headers.filter(h =>
       cards.className = "cards";
 
       list.forEach(item => {
-
         const card = document.createElement("div");
         card.className = "card";
 
-        const name = (item["Nombre"] || "") + " " + (item["Apellido"] || "");
+        const name = ((item["Nombre"] || "") + " " + (item["Apellido"] || "")).trim();
 
         card.innerHTML = `
           <div class="name">${name}</div>
