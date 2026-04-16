@@ -155,7 +155,11 @@
         data = await res.json();
 
         headers = Object.keys(data[0]);
-
+const filtrosVisibles = headers.filter(h =>
+  h !== "Mail" &&
+  h !== "Teléfono (fijo o celular)" &&
+  h !== 'Si su respuesta fue "Sí", ¿con qué obra social trabaja?'
+);
         headers.forEach(h => filters[h] = "");
 
         renderFilters();
